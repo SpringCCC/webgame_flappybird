@@ -9,7 +9,6 @@ from configs import config
 
 def get_region_img(region, sv_img_name):
     sct = mss.mss()
-    p = r"D:\code\rl\webgame\web_game_tools_demo\assets"
     img = np.array(sct.grab(region))
     save_img(img, f"{config.p_asset}\{sv_img_name}")
 

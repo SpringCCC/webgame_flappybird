@@ -1,18 +1,52 @@
 
 from dataclasses import dataclass
 
+# @dataclass
+# class Config():
+#     start_reigon = {"top": 758, "left": -802, "width": 158, "height": 35}
+#     stop_region = {"top": 792, "left": -911, "width": 35, "height": 57}
+#     game_region = {"top": -54, "left": -1102, "width": 762, "height": 1038}
+#     play_region =  {"top": 757, "left": -958, "width": 127, "height": 36}
+    # small_regions = {'start_reigon':start_reigon, 'stop_region':stop_region, 'play_region':play_region}
+    
+#     start_pos = (-722, 780)
+#     play_pos = (play_region['left'], play_region['top'])
+    
+#     #path
+#     p_asset = r"assets"
+    
+    
+#     fps = 20
+    
+
+    
+#     #dqn
+#     max_buffer = 2000
+#     batch_size = 32
+#     n_actions = 2 # 0:up 1:down
+
+
+
+# GS
 @dataclass
 class Config():
-    start_reigon = {"top": 758, "left": -802, "width": 158, "height": 35}
-    stop_region = {"top": 792, "left": -911, "width": 35, "height": 57}
-    game_region = {"top": -54, "left": -1102, "width": 762, "height": 1038}
-    play_region =  {"top": 757, "left": -958, "width": 127, "height": 36}
+    start_reigon = {"top": 1578, "left": 5032, "width": 176, "height": 39}
+    stop_region ={"top": 1615, "left": 4897, "width": 49, "height": 58}
+    game_region = {"top": 630, "left": 4677, "width": 885, "height": 1227}
+    play_region =  {"top": 1576, "left": 4851, "width": 146, "height": 43}
+    score_region = {"top": 686, "left": 5088, "width": 164, "height": 55}
+
+    small_regions = {'start_reigon':start_reigon, 'stop_region':stop_region, 'play_region':play_region, 'score_region':score_region}
     
-    start_pos = (-722, 780)
-    play_pos = (-893, 780)
+    start_pos = (start_reigon['left'], start_reigon['top'])
+    play_pos = (play_region['left'], play_region['top'])
     
     #path
     p_asset = r"assets"
+    p_mask = r"mask"
+    p_gamewin = r"gamewin"
+    p_sv_start = r"assets\start.jpg"
+    p_sv_play = r"assets\play.jpg"
     
     
     fps = 20
@@ -23,6 +57,12 @@ class Config():
     max_buffer = 2000
     batch_size = 32
     n_actions = 2 # 0:up 1:down
+    lr = 1e-3
+    min_lr = 1e-4
+    T_max = 1000
+    freq_update_params = 5
+    freq_save_model = 1000
+    is_debug = True
     
     
 config = Config()

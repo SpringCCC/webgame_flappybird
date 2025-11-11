@@ -1,6 +1,7 @@
 import numpy as np
+from configs import config
 
-def extract_small_regions(big_img: np.ndarray, big_region: dict, small_regions: dict):
+def extract_small_regions(big_img: np.ndarray, big_region=config.game_region, small_regions=config.small_regions):
     """
     从大图中提取小区域图像
     
