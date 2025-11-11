@@ -1,6 +1,4 @@
-import mss
 import numpy as np
-import pytesseract
 import cv2
 from springc_utils import *
 from configs import config
@@ -18,10 +16,15 @@ class ScoreDetector:
         min_white_ratio: 小于此比例认为分数消失
         """
         self.prev_mask = None
+        self.pre_score_disappeared = True
         self.white_thresh = white_thresh
         self.diff_thresh = diff_thresh
         self.min_white_ratio = min_white_ratio
         self.c = 0
+        
+    def reset(self):
+        self.pre_mask = None
+        self.pre_score_disappeared = True
 
     def get_white_mask(self, img):
         """提取白色区域掩膜"""
@@ -30,7 +33,7 @@ class ScoreDetector:
         mask = cv2.inRange(gray, self.white_thresh, 255)
         return mask
 
-    def analyze(self, img):
+    def analyze(self, img, game_img=None):
 
         mask = self.get_white_mask(img)
 
@@ -39,7 +42,7 @@ class ScoreDetector:
             vis[mask > 0] = [0, 0, 255]  # 将白色区域标红
             save_img(vis, f"mask/{self.c}.jpg")
             self.c+=1
-
+                
         white_ratio = np.sum(mask > 0) / mask.size
         score_disappeared = white_ratio < self.min_white_ratio
         score_changed = False
@@ -47,7 +50,15 @@ class ScoreDetector:
             union = np.bitwise_or(self.prev_mask, mask)
             inter = np.bitwise_and(self.prev_mask, mask)
             white_ratio = np.sum(inter > 0) / (np.sum(union > 0)+1)
-            score_changed = white_ratio < self.diff_thresh
-
+            if not self.pre_score_disappeared:
+                score_changed = white_ratio < self.diff_thresh
+                
         self.prev_mask = mask
+        if config.is_debug and game_img is not None:
+            game_img_copy = game_img.copy()
+            game_img_copy = game_img_copy.astype(np.uint8)
+            save_img(game_img_copy, f"gamewin/{self.c-1}.jpg")
+            print(f"self.c={self.c-1}\t{score_changed=}\t{score_disappeared=}\t{white_ratio=}")
+
+        self.pre_score_disappeared = score_disappeared
         return score_changed, score_disappeared

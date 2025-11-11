@@ -18,9 +18,10 @@ import os
 from configs import config
 from webgame_utils.capture_env_state import Env
 from webgame_utils.click_actions import *
+from springc_utils import *
 
 device = torch.device("cuda:0") if torch.cuda.is_available() else torch.device("cpu")
-
+setup_logging("train.log")
 
 def totensor(r, dtype=torch.float32):
     if isinstance(r, np.ndarray):
@@ -51,6 +52,8 @@ class ReplayBuffer():
         
         
     def store(self, s, a, r, s1, done):
+        if r == 0:
+            a = 1
         self.state[self.cur_ptr] = s
         self.next_state[self.cur_ptr] = s1
         self.reward[self.cur_ptr] = r
@@ -124,7 +127,8 @@ class DQN_Agent():
         self.minmal_data_size =512
         self.min_eps = 0.1
         self.max_eps = 1.0
-        self.eps = self.max_eps
+        # self.eps = self.max_eps
+        self.eps = self.min_eps
         self.eps_decay = 1/1000
 
         self.main_net = DQNet().to(device)
@@ -168,6 +172,7 @@ class DQN_Agent():
         self.trans = []
         self.state, self.next_state = None, None
         self.is_playing = False
+        self.env.sd.reset()
 
     def do_stop(self):
         self.writer.add_scalar("Loss/episode", np.asarray(self.loss).mean(), self.n_episode)
@@ -176,6 +181,7 @@ class DQN_Agent():
 
 
     def train_dqn(self):
+        print("START TRAIN...")
         self.main_net.train()
         self.target_net.eval()
         interval = 1 / config.fps
@@ -209,6 +215,7 @@ class DQN_Agent():
 
 
             if is_stop_game: #第一次遇到is_stop_game需要再处理一下
+                
                 self.is_playing=False
                 reward = -10
                 self.trans.append(reward)
@@ -236,7 +243,8 @@ class DQN_Agent():
                 self.trans.append(reward)
                 self.trans.append(self.next_state)
                 self.trans.append(is_stop_game)
-                print(f"存储数据：{len(self.trans)}")
+                if config.is_debug:
+                    print(f"存储数据：{len(self.trans)}")
                 self.replay.store(*self.trans)
 
                 self.state = self.next_state
@@ -258,8 +266,8 @@ class DQN_Agent():
                 elapsed = time.time() - start_time
                 if elapsed < interval:
                     time.sleep(interval - elapsed)
-                if config.is_debug:
-                    print(f"sleep :{interval - elapsed}")
+                # if config.is_debug:
+                print(f"sleep :{interval - elapsed}")
 
         self.writer.close()
     
@@ -299,9 +307,9 @@ class DQN_Agent():
         self.writer.add_text("Policy", policy_str, global_step=n_episode)
     
 def main():
-    if config.is_debug:
-        checkroot(config.p_mask)
-        checkroot(config.p_gamewin)
+    # if config.is_debug:
+    checkroot(config.p_mask)
+    checkroot(config.p_gamewin)
     agent = DQN_Agent()
     try:
         agent.train_dqn()

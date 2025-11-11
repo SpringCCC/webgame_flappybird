@@ -14,5 +14,5 @@ def get_region_img(region, sv_img_name):
 
 # get_region_img(config.game_region, "game.jpg")
 # get_region_img(config.stop_region, "stop.jpg")
-get_region_img(config.start_reigon, "start.jpg")
+get_region_img(config.start_region, "start.jpg")
 # get_region_img(config.play_region, "play.jpg")
