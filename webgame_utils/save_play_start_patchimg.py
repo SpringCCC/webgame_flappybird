@@ -30,5 +30,5 @@ def save_start_patch():
     
 
 if __name__ == '__main__':
-    save_play_patch()
-    # save_start_patch()
+    # save_play_patch()
+    save_start_patch()

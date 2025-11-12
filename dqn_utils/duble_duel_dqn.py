@@ -52,8 +52,6 @@ class ReplayBuffer():
         
         
     def store(self, s, a, r, s1, done):
-        if r == 0:
-            a = 1
         self.state[self.cur_ptr] = s
         self.next_state[self.cur_ptr] = s1
         self.reward[self.cur_ptr] = r
@@ -66,11 +64,11 @@ class ReplayBuffer():
     def sample(self, bs=64):
         idx = np.random.choice(self.cur_size, self.batch_size, replace=False)
         trans = {}
-        trans['state'] = self.state[idx]
-        trans['next_state'] = self.next_state[idx]
-        trans['reward'] = self.reward[idx]
-        trans['action'] = self.action[idx]
-        trans['done'] = self.done[idx]
+        trans['state'] = [self.state[i] for i in idx]
+        trans['next_state'] = [self.next_state[i] for i in idx]
+        trans['reward'] = [self.reward[i].item() for i in idx]
+        trans['action'] = [self.action[i].item() for i in idx]
+        trans['done'] = [self.done[i].item() for i in idx]
         return trans
         
     def size(self):
@@ -102,11 +100,9 @@ class DQNet(nn.Module):
     def __init__(self):
         super(DQNet, self).__init__()
         self.net = nn.Sequential(
-            Conv(3, 128, 7, 4),
-            Conv(128, 256, 5, 2),
-            Conv(256, 512, 5, 2),
-            Conv(512, 512, 3, 1),
-            Conv(512, 256, 3, 1),
+            Conv(3, 32, 8, 4),
+            Conv(32, 64, 5, 2),
+            Conv(64, 64, 5, 2),
             )
         self.pool = nn.AdaptiveMaxPool2d((1, 1))
         self.v_head = nn.Linear(256, 1)
@@ -124,13 +120,13 @@ class DQN_Agent():
     
     def __init__(self):
         super().__init__()
-        self.minmal_data_size =512
+        self.minmal_data_size = config.batch_size
         self.min_eps = 0.1
         self.max_eps = 1.0
-        # self.eps = self.max_eps
-        self.eps = self.min_eps
-        self.eps_decay = 1/1000
-
+        self.eps = self.max_eps
+        # self.eps = self.min_eps
+        self.eps_decay_step = 2000
+        self.gamma = config.gamma
         self.main_net = DQNet().to(device)
         self.target_net = DQNet().to(device)
         self.sync_paramters()
@@ -147,6 +143,7 @@ class DQN_Agent():
 
 
     def preprocess(self, x):
+        x = cv2.resize(x, (config.resize_w, config.resize_h))
         x = x.astype(np.float32)
         x /= 255.0
         x = np.transpose(x, (2, 0, 1))
@@ -191,6 +188,7 @@ class DQN_Agent():
         self.reset()
 
         while True:
+            print(f"当前replay_buffer的size:{self.replay.size()}")
             start_time = time.time()
             game_img, is_start_page, is_play_page, is_stop_game, score_changed = self.env.capture()
             self.next_state = self.preprocess(game_img)
@@ -213,24 +211,27 @@ class DQN_Agent():
                     time.sleep(interval - elapsed)
                 continue
 
-
+            print(f"{is_stop_game}\t{self.is_playing=}")
             if is_stop_game: #第一次遇到is_stop_game需要再处理一下
-                
-                self.is_playing=False
-                reward = -10
-                self.trans.append(reward)
-                self.trans.append(self.next_state)
-                self.trans.append(is_stop_game)
+                if self.is_playing:
+                    self.n_episode += 1
+                    self.is_playing=False
+                    reward = -10
+                    self.trans.append(reward)
+                    self.trans.append(self.next_state)
+                    self.trans.append(is_stop_game)
+                    self.replay.store(*self.trans)
+                    print("store data in last frame")
 
-                if self.score > self.score_max:
-                    self.score_max = self.score
-                    torch.save(self.main_net.state_dict(), f"checkpoints\dqn_main_net_best.pth")
+                    if self.score > self.score_max:
+                        self.score_max = self.score
+                        torch.save(self.main_net.state_dict(), f"checkpoints\dqn_main_net_best.pth")
                 
                 # if update_cnt > 4000 and update_cnt%2000==0:#暂停玩游戏，专心训练已有数据
                 #     for _  in range(2000):
                 #         update_cnt_total += 1
                 #         loss = self.update_model()
-                self.reset()
+                    self.reset()
                 if self.n_episode > 100000:#训练超过10W次完整游戏后，退出
                     break
                 else:
@@ -243,8 +244,6 @@ class DQN_Agent():
                 self.trans.append(reward)
                 self.trans.append(self.next_state)
                 self.trans.append(is_stop_game)
-                if config.is_debug:
-                    print(f"存储数据：{len(self.trans)}")
                 self.replay.store(*self.trans)
 
                 self.state = self.next_state
@@ -258,6 +257,7 @@ class DQN_Agent():
                     update_cnt += 1
                     update_cnt_total += 1
                     self.update_model()
+                    self.eps = max(self.min_eps, self.eps - (self.max_eps-self.min_eps)/self.eps_decay_step)
                     if update_cnt % config.freq_update_params == 0:
                         self.sync_paramters()
                     if update_cnt % config.freq_save_model:
@@ -279,12 +279,14 @@ class DQN_Agent():
         reward      = totensor(reward, torch.float32)
         action      = totensor(action, torch.long)
         done        = totensor(done, torch.float32)
-
-        target_action = self.main_net(next_state[:, 0], next_state[:, 1]).argmax(dim=1, keepdim=True)
-        next_q_value = self.target_net(next_state[:, 0], next_state[:, 1]).gather(1, target_action).detach()
+        with torch.no_grad():
+            self.main_net.eval()
+            target_action = self.main_net(state).argmax(dim=1, keepdim=True)
+            self.main_net.train()
+            next_q_value = self.target_net(next_state).gather(1, target_action).detach()
         target = reward + self.gamma * next_q_value[:, 0] * (1-done)
         
-        pred = self.main_net(state[:, 0], state[:, 1]).gather(1, action.reshape(-1, 1))
+        pred = self.main_net(state).gather(1, action.reshape(-1, 1))
         loss = F.smooth_l1_loss(pred, target.reshape(-1, 1))
         return loss
 
